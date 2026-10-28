@@ -4,14 +4,14 @@ from tkinter import messagebox
 
 
 class BlackScreen:
-    def __init__(self, on_submit=None):
+    def __init__(self, root, on_submit=None):
+        self.root = root
         self.on_submit = on_submit
         self.window = None
         self.reason_var = None
-        self.submit_button = None
 
     def show(self):
-        # Already open-ah irundha duplicate window create panna vendaam
+        # Avoid opening duplicate black screens
         if self.window is not None:
             try:
                 if self.window.winfo_exists():
@@ -20,37 +20,37 @@ class BlackScreen:
             except tk.TclError:
                 pass
 
-        self.window = tk.Toplevel()
+        self.window = tk.Toplevel(self.root)
         self.window.title("Idle Reason")
         self.window.configure(bg="black")
         self.window.attributes("-fullscreen", True)
         self.window.attributes("-topmost", True)
-        self.window.protocol("WM_DELETE_WINDOW", self.prevent_close)
+
+        # Prevent closing without submitting a reason
+        self.window.protocol(
+            "WM_DELETE_WINDOW", self.prevent_close
+        )
 
         self.reason_var = tk.StringVar(value="")
 
-        title = tk.Label(
+        tk.Label(
             self.window,
             text="YOU ARE IDLE",
             font=("Arial", 28, "bold"),
             fg="white",
             bg="black",
-        )
-        title.pack(pady=(100, 20))
+        ).pack(pady=(100, 20))
 
-        instruction = tk.Label(
+        tk.Label(
             self.window,
             text="Please select your idle reason",
             font=("Arial", 16),
             fg="white",
             bg="black",
-        )
-        instruction.pack(pady=10)
+        ).pack(pady=10)
 
-        reasons = ["Break", "Lunch", "Meeting", "Others"]
-
-        for reason in reasons:
-            radio = tk.Radiobutton(
+        for reason in ["Break", "Lunch", "Meeting", "Others"]:
+            tk.Radiobutton(
                 self.window,
                 text=reason,
                 variable=self.reason_var,
@@ -61,17 +61,15 @@ class BlackScreen:
                 selectcolor="black",
                 activebackground="black",
                 activeforeground="white",
-            )
-            radio.pack(anchor="center", pady=8)
+            ).pack(anchor="center", pady=8)
 
-        self.submit_button = tk.Button(
+        tk.Button(
             self.window,
             text="Submit",
             font=("Arial", 14, "bold"),
             width=15,
             command=self.submit_reason,
-        )
-        self.submit_button.pack(pady=30)
+        ).pack(pady=30)
 
         self.window.focus_force()
         self.window.grab_set()
@@ -87,32 +85,31 @@ class BlackScreen:
             )
             return
 
-        # Parent application-kku selected reason-ai anuppum
-        if self.on_submit is not None:
-            try:
-                result = self.on_submit(reason)
+        if self.on_submit is None:
+            messagebox.showerror(
+                "Error",
+                "Database save function is not connected.",
+                parent=self.window,
+            )
+            return
 
-                # Callback False return pannina close panna vendaam
-                if result is False:
-                    messagebox.showerror(
-                        "Error",
-                        "Reason could not be saved. Please try again.",
-                        parent=self.window,
-                    )
-                    return
+        try:
+            result = self.on_submit(reason)
 
-            except Exception as error:
-                messagebox.showerror(
-                    "Error",
-                    f"Could not save idle reason:\n{error}",
-                    parent=self.window,
-                )
+            if result is False:
                 return
 
-        # Submit successful aana piragu mattum close aagum
-        self.close()
+            self.close()
+
+        except Exception as error:
+            messagebox.showerror(
+                "Database Error",
+                str(error),
+                parent=self.window,
+            )
 
     def prevent_close(self):
+        # Keep the screen open until Submit is clicked
         messagebox.showinfo(
             "Idle Reason Required",
             "Please select a reason and click Submit.",
@@ -134,21 +131,5 @@ class BlackScreen:
             self.window = None
 
     def hide(self):
-        # Compatibility method: existing code hide() call pannina
+        # Keep compatibility with idle_monitor.py
         self.close()
-
-
-# Standalone test
-if __name__ == "__main__":
-    root = tk.Tk()
-    root.withdraw()
-
-    def test_save_reason(reason):
-        print("Selected idle reason:", reason)
-        # Ithu test mattum; database-la save pannaadhu.
-        return True
-
-    black = BlackScreen(on_submit=test_save_reason)
-    black.show()
-
-    root.mainloop()
